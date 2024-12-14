@@ -1,34 +1,37 @@
-from tqdm import tqdm
-from pathlib import Path
-import numpy as np
-import librosa
 import json
-import click
 import multiprocessing as mp
-mp.set_start_method('fork', force=True)
-from fuzzywuzzy import fuzz, process
-from catshand.utility import loggergen
-from catshand.postproc import remove_silence, match_target_amplitude
-from pydub import AudioSegment
-from pydub import effects
-from pydub.silence import detect_nonsilent, split_on_silence
+from pathlib import Path
+
+import click
+import librosa
 import noisereduce as nr
+import numpy as np
+from fuzzywuzzy import fuzz, process
+from pydub import AudioSegment, effects
+from pydub.silence import detect_nonsilent, split_on_silence
+from tqdm import tqdm
+
+from catshand.postproc import match_target_amplitude, remove_silence
+from catshand.utility import loggergen
+
+mp.set_start_method("fork", force=True)
+
 
 def matchname_opfilelist(ipfilelist, prjdir, logger):
-    config_path = prjdir.joinpath('config', 'config.json')
+    config_path = prjdir.joinpath("config", "config.json")
     with open(config_path) as f:
         config = json.load(f)
-    logger.info(f'load config.json: {config_path}')
+    logger.info(f"load config.json: {config_path}")
 
-    host_dict_path = Path(__file__).parents[1].joinpath('config','hosts_dict.json')
+    host_dict_path = Path(__file__).parents[1].joinpath("config", "hosts_dict.json")
     with open(host_dict_path) as f:
         host_dict = json.load(f)
-    logger.info(f'load hosts_dict.json: {host_dict_path}')
+    logger.info(f"load hosts_dict.json: {host_dict_path}")
 
     ipfilelist_names = [x.name for x in ipfilelist]
 
-    hosts = config['hosts']
-    guests = config['guests']
+    hosts = config["hosts"]
+    guests = config["guests"]
     name_dict = {}
     hostname_options = []
     guestname_options = []
@@ -46,56 +49,72 @@ def matchname_opfilelist(ipfilelist, prjdir, logger):
     opfilelist_names_new = []
     for ipfilelist_name in ipfilelist_names:
         results = process.extract(ipfilelist_name, names, scorer=fuzz.token_sort_ratio)
-        opfilelist_names_new.append(name_dict[results[0][0]])    
+        opfilelist_names_new.append(name_dict[results[0][0]])
 
     return opfilelist_names_new
 
-def sample_track(sound, timepoints=4, sample_frac = 0.05):
+
+def sample_track(sound, timepoints=4, sample_frac=0.05):
     total_len = len(sound)
-    timepoints_start = [i*int(total_len/timepoints) for i in range(timepoints)]
+    timepoints_start = [i * int(total_len / timepoints) for i in range(timepoints)]
     print(timepoints_start)
-    sample_len = int(total_len*sample_frac/timepoints)
+    sample_len = int(total_len * sample_frac / timepoints)
     print(sample_len)
     sections = []
     for timepoint_start in timepoints_start:
-        sections.append(sound[timepoint_start:timepoint_start+sample_len])
+        sections.append(sound[timepoint_start : timepoint_start + sample_len])
     sound_sample = sum(sections)
     return sound_sample
 
-def _effects(ipfile, opfile, opfile_noeffect, bitrate, logger, loudness, compressor, noisereduce, finetune):
+
+def _effects(
+    ipfile,
+    opfile,
+    opfile_noeffect,
+    bitrate,
+    logger,
+    loudness,
+    compressor,
+    noisereduce,
+    finetune,
+):
     sound = AudioSegment.from_file(ipfile)
-    logger.info(f'Frame rate: {sound.frame_rate}')
-    
-    if finetune: 
+    logger.info(f"Frame rate: {sound.frame_rate}")
+
+    if finetune:
         sound = sample_track(sound)
         opfile_noeffect.parent.mkdir(exist_ok=True, parents=True)
         sound.export(opfile_noeffect, format="wav", bitrate=bitrate)
 
-    logger.info(f'Export .wav file with bitrate {bitrate}: {opfile}')
+    logger.info(f"Export .wav file with bitrate {bitrate}: {opfile}")
 
     effects_check = loudness or compressor or noisereduce
-    # if effects_check: 
+    # if effects_check:
     sound_p = sound
 
-    if loudness and (compressor or noisereduce): 
+    if loudness and (compressor or noisereduce):
         target_db = -40.0
-        logger.info(f'Apply loudness adjustment: {target_db}')
+        logger.info(f"Apply loudness adjustment: {target_db}")
         sound_p_downsample = sound_p.set_frame_rate(100)
-        sound_as_short_nosilence = remove_silence(sound_p_downsample, min_silence_len = 500, silence_thresh = -50)
+        sound_as_short_nosilence = remove_silence(
+            sound_p_downsample, min_silence_len=500, silence_thresh=-50
+        )
         sound_p = match_target_amplitude(sound_p, sound_as_short_nosilence, target_db)
-        logger.info(f'Finish loudness adjustment')
+        logger.info(f"Finish loudness adjustment")
 
     if compressor:
-        logger.info(f'Apply compressor')
-        
-        logger.info(f'run pydub effects.compress_dynamic_range')
+        logger.info(f"Apply compressor")
+
+        logger.info(f"run pydub effects.compress_dynamic_range")
         target_db = -12.0
         ratio = 2.0
         attack = 0.2
         release = 1
-        sound_p = effects.compress_dynamic_range(sound_p, threshold = target_db, ratio = ratio, attack = attack, release = release)
-        
-        '''
+        sound_p = effects.compress_dynamic_range(
+            sound_p, threshold=target_db, ratio=ratio, attack=attack, release=release
+        )
+
+        """
         logger.info(f'run librosa.mu_compress')
         sound_p_array = np.array(sound_p.get_array_of_samples())            
         print(sound_p_array.max(), sound_p_array.min())
@@ -112,35 +131,43 @@ def _effects(ipfile, opfile, opfile_noeffect, bitrate, logger, loudness, compres
                         frame_rate=bitrate,
                         sample_width=sound_p_array.dtype.itemsize, 
                         channels=1)
-        '''
-        logger.info(f'Finish compressor')
+        """
+        logger.info(f"Finish compressor")
 
     if noisereduce:
-        logger.info(f'Apply noise reduction')
-        sound_p_array = np.array(sound_p.get_array_of_samples()).astype(np.float32)/32768
-        sound_p_array = nr.reduce_noise(y = sound_p_array, sr=bitrate, n_std_thresh_stationary=1.1, stationary=True)
-        sound_p_array = sound_p_array*32768
+        logger.info(f"Apply noise reduction")
+        sound_p_array = (
+            np.array(sound_p.get_array_of_samples()).astype(np.float32) / 32768
+        )
+        sound_p_array = nr.reduce_noise(
+            y=sound_p_array, sr=bitrate, n_std_thresh_stationary=1.1, stationary=True
+        )
+        sound_p_array = sound_p_array * 32768
         sound_p_array = sound_p_array.astype(np.int16)
 
         sound_p = AudioSegment(
-                        sound_p_array.tobytes(), 
-                        frame_rate=bitrate,
-                        sample_width=sound_p_array.dtype.itemsize, 
-                        channels=1)
-        logger.info(f'Finish noise reduction')
-    
-    if loudness: 
+            sound_p_array.tobytes(),
+            frame_rate=bitrate,
+            sample_width=sound_p_array.dtype.itemsize,
+            channels=1,
+        )
+        logger.info(f"Finish noise reduction")
+
+    if loudness:
         target_db = -20.0
-        logger.info(f'Apply loudness adjustment: {target_db}')
+        logger.info(f"Apply loudness adjustment: {target_db}")
         sound_p_downsample = sound_p.set_frame_rate(100)
-        sound_as_short_nosilence = remove_silence(sound_p_downsample, min_silence_len = 500, silence_thresh = -50)
+        sound_as_short_nosilence = remove_silence(
+            sound_p_downsample, min_silence_len=500, silence_thresh=-50
+        )
         sound_p = match_target_amplitude(sound_p, sound_as_short_nosilence, target_db)
-        logger.info(f'Finish loudness adjustment')
-    
+        logger.info(f"Finish loudness adjustment")
+
     opfile.parent.mkdir(exist_ok=True, parents=True)
     sound_p.export(opfile, format="wav", bitrate=bitrate)
-    logger.info(f'Export processed .wav file with bitrate {bitrate}: {opfile}')
-    return 
+    logger.info(f"Export processed .wav file with bitrate {bitrate}: {opfile}")
+    return
+
 
 def audio2wav(args):
     # load arguments
@@ -148,15 +175,15 @@ def audio2wav(args):
     if not args.input_dir is None:
         ipdir = Path(args.input_dir)
     else:
-        ipdir = prjdir.joinpath('00_Raw')
+        ipdir = prjdir.joinpath("00_Raw")
 
     if not args.output_dir is None:
         opdir = Path(args.output_dir)
     else:
-        opdir = prjdir.joinpath(ipdir.name + '_wav')
+        opdir = prjdir.joinpath(ipdir.name + "_wav")
 
     opdir.mkdir(exist_ok=True, parents=True)
-    opdir_wavnoeffect = prjdir.joinpath(opdir.name + '_noeffect')
+    opdir_wavnoeffect = prjdir.joinpath(opdir.name + "_noeffect")
 
     bitrate = args.bitrate
     matchname = args.match_name
@@ -166,65 +193,136 @@ def audio2wav(args):
     finetune = args.finetune
     threads = args.threads
 
-    logdir = prjdir.joinpath('log')
+    logdir = prjdir.joinpath("log")
     logdir.mkdir(exist_ok=True, parents=True)
     logger = loggergen(logdir)
-    logger.info(f'args: {args}')
+    logger.info(f"args: {args}")
 
     # create input file list
-    suffixes = ['.mp3', '.wav', '.m4a']
+    suffixes = [".mp3", ".wav", ".m4a"]
     ipfilelist = []
     for suffix in suffixes:
-        ipfilelist.extend(sorted(Path(ipdir).glob(str(Path('**').joinpath(f'*{suffix}')))))
-    logger.info(f'ipfilelist: {ipfilelist}')
+        ipfilelist.extend(
+            sorted(Path(ipdir).glob(str(Path("**").joinpath(f"*{suffix}"))))
+        )
+    logger.info(f"ipfilelist: {ipfilelist}")
 
-    opfilelist = [opdir.joinpath(x.relative_to(ipdir)).with_suffix('.wav') for x in ipfilelist]
-    opfilelist_noeffect = [Path(opdir_wavnoeffect).joinpath(x.relative_to(ipdir)).with_suffix('.wav') for x in ipfilelist]
+    opfilelist = [
+        opdir.joinpath(x.relative_to(ipdir)).with_suffix(".wav") for x in ipfilelist
+    ]
+    opfilelist_noeffect = [
+        Path(opdir_wavnoeffect).joinpath(x.relative_to(ipdir)).with_suffix(".wav")
+        for x in ipfilelist
+    ]
     # create output file list
     if matchname & (not prjdir is None):
         opfilelist_names_new = matchname_opfilelist(ipfilelist, prjdir, logger)
-        opfilelist = [opfln_old.parent.joinpath(opfln_new).with_suffix('.wav') for opfln_old, opfln_new in zip(opfilelist, opfilelist_names_new)]
-        opfilelist_noeffect = [opfln_old.parent.joinpath(opfln_new).with_suffix('.wav') for opfln_old, opfln_new in zip(opfilelist_noeffect, opfilelist_names_new)]
+        opfilelist = [
+            opfln_old.parent.joinpath(opfln_new).with_suffix(".wav")
+            for opfln_old, opfln_new in zip(opfilelist, opfilelist_names_new)
+        ]
+        opfilelist_noeffect = [
+            opfln_old.parent.joinpath(opfln_new).with_suffix(".wav")
+            for opfln_old, opfln_new in zip(opfilelist_noeffect, opfilelist_names_new)
+        ]
     elif matchname & (prjdir is None):
-        raise ValueError('prj_dir is not specified, cannot match name')
+        raise ValueError("prj_dir is not specified, cannot match name")
 
-    logger.info(f'opfilelist: {opfilelist}')
-    
+    logger.info(f"opfilelist: {opfilelist}")
+
     # multiple processing
     if threads > 1:
         pbar = tqdm(total=len(ipfilelist))
         results = []
+
         def pbar_update(result):
             results.append(result)
             pbar.update(1)
-        
+
         pool = mp.Pool(threads)
-        for ipfile, opfile, opfile_noeffect in zip(ipfilelist, opfilelist, opfilelist_noeffect):
-            pool.apply_async(_effects, args=(ipfile, opfile, opfile_noeffect, bitrate, logger, loudness, compressor, noisereduce, finetune), callback=pbar_update)
+        for ipfile, opfile, opfile_noeffect in zip(
+            ipfilelist, opfilelist, opfilelist_noeffect
+        ):
+            pool.apply_async(
+                _effects,
+                args=(
+                    ipfile,
+                    opfile,
+                    opfile_noeffect,
+                    bitrate,
+                    logger,
+                    loudness,
+                    compressor,
+                    noisereduce,
+                    finetune,
+                ),
+                callback=pbar_update,
+            )
         pool.close()
         pool.join()
 
     else:
-        for ipfile, opfile, opfile_noeffect in tqdm(zip(ipfilelist, opfilelist, opfilelist_noeffect)):
-            _effects(ipfile, opfile, opfile_noeffect, bitrate, logger, loudness, compressor, noisereduce, finetune)
-            
+        for ipfile, opfile, opfile_noeffect in tqdm(
+            zip(ipfilelist, opfilelist, opfilelist_noeffect)
+        ):
+            _effects(
+                ipfile,
+                opfile,
+                opfile_noeffect,
+                bitrate,
+                logger,
+                loudness,
+                compressor,
+                noisereduce,
+                finetune,
+            )
+
     return
+
 
 def add_subparser(subparsers):
     description = "audio2wav convert all files in a folder to wav format."
     # parser = argparse.ArgumentParser(description=description)
-    subparsers = subparsers.add_parser('audio2wav', help=description)
-    required_group = subparsers.add_argument_group('Required Arguments')
-    required_group.add_argument('-p', '--prj_dir', type = str, required = True, help = 'directory for the project folder')
-    required_group.add_argument('--bitrate', default = 32000, help = 'bitrate of export wav')
-    optional_group = subparsers.add_argument_group('Optional Arguments')
-    optional_group.add_argument('-i', '--input_dir', type = str, help = 'input folders with aufio files (.mp3, .wav, and .m4a).')
-    optional_group.add_argument('-o', '--output_dir', type = str, help = 'output folders different from default')
-    optional_group.add_argument('-m', '--match_name', action='store_true', help = 'fuzzy match filename with hosts and guests')
-    optional_group.add_argument('-c', '--compressor', action='store_true', help = 'apply compressor')
-    optional_group.add_argument('-l', '--loudness', action='store_true', help = 'apply loudness adjustment')
-    optional_group.add_argument('-r', '--noisereduce', action='store_true', help = 'apply noise reduction')
-    optional_group.add_argument('--finetune', action='store_true', help = 'export wav before effects')
-    optional_group.add_argument('-t', '--threads', dest='threads', type=int, default = 1)
+    subparsers = subparsers.add_parser("audio2wav", help=description)
+    required_group = subparsers.add_argument_group("Required Arguments")
+    required_group.add_argument(
+        "-p",
+        "--prj_dir",
+        type=str,
+        required=True,
+        help="directory for the project folder",
+    )
+    required_group.add_argument(
+        "--bitrate", default=32000, help="bitrate of export wav"
+    )
+    optional_group = subparsers.add_argument_group("Optional Arguments")
+    optional_group.add_argument(
+        "-i",
+        "--input_dir",
+        type=str,
+        help="input folders with aufio files (.mp3, .wav, and .m4a).",
+    )
+    optional_group.add_argument(
+        "-o", "--output_dir", type=str, help="output folders different from default"
+    )
+    optional_group.add_argument(
+        "-m",
+        "--match_name",
+        action="store_true",
+        help="fuzzy match filename with hosts and guests",
+    )
+    optional_group.add_argument(
+        "-c", "--compressor", action="store_true", help="apply compressor"
+    )
+    optional_group.add_argument(
+        "-l", "--loudness", action="store_true", help="apply loudness adjustment"
+    )
+    optional_group.add_argument(
+        "-r", "--noisereduce", action="store_true", help="apply noise reduction"
+    )
+    optional_group.add_argument(
+        "--finetune", action="store_true", help="export wav before effects"
+    )
+    optional_group.add_argument("-t", "--threads", dest="threads", type=int, default=1)
     subparsers.set_defaults(func=audio2wav)
     return

@@ -18,11 +18,10 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: BSD License",
     "Operating System :: POSIX :: Linux",
-    "Programming Language :: Python :: 2",
-    "Programming Language :: Python :: 2.7",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.4",
-    "Programming Language :: Python :: 3.5",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 requires-python = ">=3.9"
 dependencies = [
@@ -52,11 +51,11 @@ Homepage = "https://github.com/eufmike/catshand"
 
 [project.scripts]
 catshand = "catshand.main:main"
+catshand_dev = "catshand.main_dev:app"
 
 [project.optional-dependencies]
-dev = ["black", "bumpver", "isort", "pip-tools", "pytest"]
+dev = ["ruff", "bumpver", "pytest"]
 win = ["pywin32", "pywinpty"]
-
 
 [tool.bumpver]
 current_version = "0.3.6"

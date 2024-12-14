@@ -1,6 +1,0 @@
-channels:
-  - defaults
-  - conda-forge
-dependencies:
-  - pywin32=306
-  - pywinpty=2.0.13

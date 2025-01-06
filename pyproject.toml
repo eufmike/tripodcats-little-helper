@@ -54,7 +54,23 @@ catshand = "catshand.main:main"
 catshand_dev = "catshand.main_dev:app"
 
 [project.optional-dependencies]
-dev = ["ruff", "bumpver", "pytest"]
+dev = [
+    "ruff", 
+    "bumpver", 
+    "pytest", 
+    "pytest-cov",
+    "pytest-env",
+    "pre-commit", 
+    "pandas-stubs",
+    "mypy", 
+    "lxml",
+    "docstr-coverage",
+    "Sphinx",
+    "furo",
+    "sphinx-autoapi",
+    "myst-parser",
+    "click",
+]
 win = ["pywin32", "pywinpty"]
 
 [tool.bumpver]
@@ -68,4 +84,23 @@ push            = false
 [tool.bumpver.file_patterns]
 "pyproject.toml" = ['current_version = "{version}"', 'version = "{version}"']
 "src/catshand/__init__.py" = ["{version}"]
+
+[tool.ruff]
+exclude = [
+    "__pycache__", 
+    ".git", 
+    ".ipynb_checkpoints", 
+    "dist", 
+    "build", 
+    "venv", 
+    "env", 
+    ".vscode", 
+    ".idea", 
+    ".pytest_cache", 
+    ".mypy_cache", 
+    ".tox", 
+    ".ruff"
+]
+
+line-length = 79
 

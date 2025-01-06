@@ -13,7 +13,7 @@ Catshand (Cat's Hand) is a toolbox designed for audio editing and production in 
 3. create conda environment
 
     ```shell
-    conda create -n catshand -y -c conda-forge python=3.9 ffmpeg 
+    conda create -n catshand -y -c conda-forge python=3.9 ffmpeg mamba 
     ## catshand can be replaced by your-own-env-name
     ```
 
@@ -25,12 +25,36 @@ Catshand (Cat's Hand) is a toolbox designed for audio editing and production in 
 
 5. Installation
 
-    ```shell
-    # for Mac users
-    pip install catshand
-    # for Windows users
-    pip install "catshand[win]"
-    ```
+    - For general users
+
+        ```bash
+        # for Mac users
+        pip install catshand
+        
+        # highly recommend to run pip install using uv (a lot faster than pip only)
+        # 1. install uv via homebrew
+        # (if brew is not installed, please install homebrew first. Please see https://brew.sh/ for more details)
+        brew install uv
+        # 2. install catshand using uv
+        uv pip install catshand
+        
+        # for Windows users
+        # please note that the catshand[win] is not fully tested
+        pip install "catshand[win]"
+        ```
+
+    - For developers
+
+        ```bash
+        # Developers can install the package in editable mode
+        # 1. clone the repository
+        # 2. move to the directory of catshand or the root directory of the repository
+        # 3. install the package in editable mode with development dependencies
+        # install with pip
+        pip install -e ".[dev]"
+        # or install with uv+pip
+        uv pip install -e ".[dev]"
+        ```
 
 6. Download demo files from this [link](https://drive.google.com/drive/folders/18VaKpXfOgM0KQbxOm8sdr8dGdOJpBT3t?usp=share_link)
 

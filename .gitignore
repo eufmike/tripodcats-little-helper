@@ -163,4 +163,4 @@ cython_debug/
 *.egg-info/
 *.pyc
 */*.pyc
-/.vscode/
+.vscode

@@ -56,9 +56,7 @@ Catshand (Cat's Hand) is a toolbox designed for audio editing and production in 
         uv pip install -e ".[dev]"
         ```
 
-6. Download demo files from this [link](https://drive.google.com/drive/folders/18VaKpXfOgM0KQbxOm8sdr8dGdOJpBT3t?usp=share_link)
-
-7. Add OpenAI API key to the environment variable to use the transcript generation function and transcript summary. Please visit [OpenAI](https://openai.com/) to get the API key and [Best Practices for API Key Safety](https://help.openai.com/en/articles/5112595-best-practices-for-api-key-safety) for more details.
+6. **[Optional, Temporary Disabled]** Add OpenAI API key to the environment variable to use the transcript generation function and transcript summary. Please visit [OpenAI](https://openai.com/) to get the API key and [Best Practices for API Key Safety](https://help.openai.com/en/articles/5112595-best-practices-for-api-key-safety) for more details.
 
     ```shell
 
@@ -69,7 +67,7 @@ Catshand (Cat's Hand) is a toolbox designed for audio editing and production in 
     echo "export OPENAI_API_KEY='<yourkey>'" >> ~/.zshrc
     ```
 
-8. Launch Audacity. Change the setting of Modules to "Enabled".
+8. Download, install, and launch Audacity. Change the setting of **Modules** to **"Enabled"**. Support up to Audacity 3.7.1.
     ![Audacity_Settings](src/catshand/fig/audacity_preference.png)
 
 ## Audio Editing
@@ -78,41 +76,49 @@ Catshand divides editing steps into two parts: pre-edit and post-edit. Pre-edit 
 
 All functions of catshand are implemented in the command line. The following sections will provide an example to jumpstart the usage of catshand. Please visit the [manuals](./src/catshand/doc/manuals.md) for more details.
 
-### Pre-edit
+### Download and Prepare Demo Files and Materials
 
-1. (Optional) Download audio materials from Google Drive: [link](https://drive.google.com/drive/folders/1vwkKg64AObKdqqiLxe1SyYdqx3ysGs3P?usp=share_link). This step is optional if you are using catshand only for pre-editing. Move the folder to the root directory of catshand.
-2. Create a project folder in the root directory of catshand using the following command:
+1. Download demo files from this [link](https://drive.google.com/drive/folders/18VaKpXfOgM0KQbxOm8sdr8dGdOJpBT3t?usp=share_link)
 
-    ```shell
-    catshand prjinit -d <root_dir> -n <project_name> -m <material_dir>
-    # example
-    catshand prjinit -d /path/to/project/Podcast/ -n EP099 -m /path/to/project/Podcast/material
-    # or
-    catshand prjinit -d $PWD -n EP099 -m $PWD/material
+2. Create a demo project folder in the root of project directory called "EP099", then move the downloaded folders "00_Raw" and "05_Highlight" to the project folder.
+
+3. Download audio materials from Google Drive: [link](https://drive.google.com/drive/folders/1vwkKg64AObKdqqiLxe1SyYdqx3ysGs3P?usp=share_link). This step is optional if you are using catshand only for pre-editing. Move the folder to the root directory of catshand.
+
+4. Run the following shell script:
+
+    ```bash
+    export PROJECT_DIR=/path/to/prject/EP099
+    export MATERIAL_DIR=/path/to/material
     ```
 
-    Answer the questions in the terminal. The project folder will be created in the root directory of catshand. The project folder will contain the following files:
-3. Download audio files from Google Drive to the project folder. The folder name should be "00_Raw"
-4. Run the following commands in order:
+### Scenario 1: Preprocessing for Editing Helpers
+
+1. Create a project folder in the root directory of catshand using the following command:
+
+    ```bash
+    # CLI syntax
+    # catshand prjinit -d <root_dir> -n <project_name> -m <material_dir>
+    catshand prjinit -d $PROJECT_DIR -n EP099 -m $MATERIAL_DIR
+    ```
+
+    Answer the questions in the terminal. The project folder will be created in the root directory of catshand.
+
+1. Run the following commands in order:
 
     ```shell
     # convert m4a to wav with filename matching
-    catshand audio2wav -p /path/to/project/Podcast/EP099 -m
-
-    # launch audacity for manual audio alignment, editing and find splitting timepoint
-    # transcript can be generated and load as labels
-    # Answer the questions in the terminal
-    catshand audacitypipe_prjpre -p /path/to/project/Podcast/EP099/ -t 4
+    catshand audio2wav -p $PROJECT_DIR -m
 
     # perform loudness normalization and noise reduction
-    catshand audio2wav -p /path/to/project/Podcast/EP099 -i /path/to/project/Podcast/EP099/00_Raw_wav_prjpre -lr -t 4
+    catshand audio2wav -p $PROJECT_DIR -i $PROJECT_DIR/00_Raw_wav -lr -t 4
     
     # remove silence
-    catshand silrm -p /path/to/project/Podcast/EP099/ -pz -t 4
+    catshand silrm -p $PROJECT_DIR -i $PROJECT_DIR/00_Raw_wav_wav -pz -t 4
     
     # split audio files
-    catshand audiosplit -p /path/to/project/Podcast/EP099/ -ts 00:02:00 00:04:00 # split audio files
+    catshand audiosplit -p $PROJECT_DIR -i $PROJECT_DIR/00_Raw_wav_wav_silrm -ts 00:02:00 00:04:00 # split audio files
     ```
+##########3
 
 5. To split the file after track merging, you can run the following commands:
 
